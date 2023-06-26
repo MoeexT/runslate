@@ -18,7 +18,7 @@ jobs:
       - name: Print env info
         run: |
           cat /proc/cpuinfo
-          free
+          free -h
           rustc --version
           rustup show
           cargo --version
@@ -30,7 +30,7 @@ jobs:
           rustup target add x86_64-pc-windows-gnu
           rustup target add x86_64-apple-darwin
           rustup target add aarch64-apple-darwin
-          sudo apt install -y build-essential
+          sudo apt install -y mingw-w64
       - name: Build release
         run: |
           cargo build --release
