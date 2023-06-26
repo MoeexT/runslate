@@ -1,9 +1,10 @@
 [package]
 name = "runslate"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["MoeexT yuwancumian666@outlook.com"]
 description = "A shell dictionary created by Rust."
+repository = "https://github.com/MoeexT/runslate.git"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
