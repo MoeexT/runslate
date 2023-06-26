@@ -15,6 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Print env info
+        run: |
+          cat /proc/cpuinfo
+          free
+          rustc --version
+          rustup show
+          cargo --version
       - run: cargo check
       - run: cargo test
       - run: rustup toolchain list
@@ -23,7 +30,7 @@ jobs:
           rustup target add x86_64-pc-windows-gnu
           rustup target add x86_64-apple-darwin
           rustup target add aarch64-apple-darwin
-          apt install -y build-essential
+          sudo apt install -y build-essential
       - name: Build release
         run: |
           cargo build --release
