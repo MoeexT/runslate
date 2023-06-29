@@ -2,19 +2,21 @@ name: Release
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "action"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
+
+permissions:
+    contents: write
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-release:
+  check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
       - name: Print env info
         run: |
           cat /proc/cpuinfo
@@ -22,32 +24,94 @@ jobs:
           rustc --version
           rustup show
           cargo --version
+      - uses: actions/checkout@v3
       - run: cargo check
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
       - run: cargo test
-      - run: rustup toolchain list
-      - name: Install toolchains
+  build:
+    name: build
+    runs-on: "${{ matrix.os }}"
+    strategy:
+      matrix:
+        build: [linux, macos, macos-arm64, windows]
+        include:
+          - build: linux
+            os: ubuntu-latest
+            rust: stable
+            target: x86_64-unknown-linux-gnu
+            archive-name: runslate-x86_64-unknown-linux-gnu.tar.gz
+
+          - build: macos
+            os: macos-latest
+            rust: stable
+            target: x86_64-apple-darwin
+            archive-name: runslate-x86_64-apple-darwin.tar.gz
+
+          - build: macos-arm64
+            os: macos-12
+            rust: stable
+            target: aarch64-apple-darwin
+            archive-name: runslate-aarch64-apple-darwin.tar.gz
+
+          - build: windows
+            os: windows-2019
+            rust: stable
+            target: x86_64-pc-windows-gnu
+            archive-name: runslate-x86_64-pc-windows-gnu.7z
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: "${{ matrix.rust }}"
+          profile: minimal
+          override: true
+          target: "${{ matrix.target }}"
+        
+      - name: Install cargo-get
+        run: cargo install cargo-get
+
+      - name: Build binary
+        run: cargo build --release --target "${{ matrix.target }}"
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Strip binary (linux and macos)
+        if: matrix.build == 'linux' || matrix.build == 'macos'
+        run: strip "target/${{ matrix.target }}/release/runslate"
+
+      - name: Build archive
+        shell: bash
         run: |
-          rustup target add x86_64-pc-windows-gnu
-          rustup target add x86_64-apple-darwin
-          rustup target add aarch64-apple-darwin
-          sudo apt install -y mingw-w64
-      - name: Build release
-        run: |
-          cargo build --release
-          cargo build --release --target x86_64-pc-windows-gnu
-          cargo build --release --target x86_64-apple-darwin
-          cargo build --release --target aarch64-apple-darwin
-      - name: Rename releases
-        run: |
-          mkdir release
-          mv target/release/runslate release/runslate-x86_64-unknown-linux-gnu
-          mv target/x86_64-pc-windows-gnu/release/runslate.exe release/runslate-x86_64-pc-windows-gnu.exe
-          mv target/x86_64-apple-darwin/release/runslate release/runslate-x86_64-apple-darwin
-          mv target/aarch64-apple-darwin/release/runslate release/runslate-aarch64-apple-darwin
-      - name: Upload artifacts
+          release_version=$(cargo get version)
+          echo "release_version=${release_version}" >> "${GITHUB_ENV}"
+          mkdir archive
+          cp LICENSE README.md archive/
+          cd archive
+          if [ "${{ matrix.build }}" = "windows" ]; then
+            cp "../target/${{ matrix.target }}/release/runslate.exe" ./"runslate-${release_version}.exe"
+            7z a "${{ matrix.archive-name }}" LICENSE README.md "runslate-${release_version}.exe"
+          else
+            cp "../target/${{ matrix.target }}/release/runslate" ./"runslate-${release_version}"
+            tar -czf "${{ matrix.archive-name }}" LICENSE README.md "runslate-${release_version}"
+          fi
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: cross arch releases
-          path: release
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
+          name: "${{ matrix.archive-name }}"
+          path: "archive/${{ matrix.archive-name }}"
+
+      - uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          tag: "${{ env.release_version }}"
+          artifacts: "archive/${{ matrix.archive-name }}"
+          token: "${{ secrets.GITHUB_TOKEN }}"
