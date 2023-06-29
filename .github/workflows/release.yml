@@ -42,25 +42,25 @@ jobs:
             os: ubuntu-latest
             rust: stable
             target: x86_64-unknown-linux-gnu
-            archive-name: runslate-x86_64-unknown-linux-gnu.tar.gz
+            archive-name: runslate-x86_64-unknown-linux-gnu
 
           - build: macos
             os: macos-latest
             rust: stable
             target: x86_64-apple-darwin
-            archive-name: runslate-x86_64-apple-darwin.tar.gz
+            archive-name: runslate-x86_64-apple-darwin
 
           - build: macos-arm64
             os: macos-12
             rust: stable
             target: aarch64-apple-darwin
-            archive-name: runslate-aarch64-apple-darwin.tar.gz
+            archive-name: runslate-aarch64-apple-darwin
 
           - build: windows
             os: windows-2019
             rust: stable
             target: x86_64-pc-windows-gnu
-            archive-name: runslate-x86_64-pc-windows-gnu.7z
+            archive-name: runslate-x86_64-pc-windows-gnu
       fail-fast: false
 
     steps:
@@ -96,11 +96,11 @@ jobs:
           cp LICENSE README.md archive/
           cd archive
           if [ "${{ matrix.build }}" = "windows" ]; then
-            cp "../target/${{ matrix.target }}/release/runslate.exe" ./"runslate-${release_version}.exe"
-            7z a "${{ matrix.archive-name }}" LICENSE README.md "runslate-${release_version}.exe"
+            cp "../target/${{ matrix.target }}/release/runslate.exe" ./runslate.exe
+            7z a "${{ matrix.archive-name }}-v${release_version}.7z" LICENSE README.md runslate.exe
           else
-            cp "../target/${{ matrix.target }}/release/runslate" ./"runslate-${release_version}"
-            tar -czf "${{ matrix.archive-name }}" LICENSE README.md "runslate-${release_version}"
+            cp "../target/${{ matrix.target }}/release/runslate" ./runslate
+            tar -czf "${{ matrix.archive-name }}-v${release_version}.tar.gz" LICENSE README.md runslate
           fi
 
       - name: Upload artifact
@@ -113,5 +113,5 @@ jobs:
         with:
           allowUpdates: true
           tag: "${{ env.release_version }}"
-          artifacts: "archive/${{ matrix.archive-name }}"
+          artifacts: "archive/${{ matrix.archive-name }}*"
           token: "${{ secrets.GITHUB_TOKEN }}"
