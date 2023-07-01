@@ -12,10 +12,17 @@ pub fn load(key: &str) -> Result<String, Error> {
 }
 
 pub fn load_or_panic(key: &str) -> String {
-    if let Ok(value) = env::var(key) {
-        return value;
+    let result = env::var(key);
+    match result {
+        Ok(value) => {
+            if value.len() > 0 {
+                debug!("[load_or_panic] get value: {} -> {}", key, value);
+                return value
+            }
+            panic!("Empty env value: {}", key)
+        },
+        Err(err) => panic!("{:#?}", err),
     }
-    panic!("Env not exist: {}", key)
 }
 
 pub fn load_or_default(key: &str, default: &str) -> String {
