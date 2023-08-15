@@ -80,7 +80,7 @@ impl Translator for Youdao {
             .await?)
     }
 
-    fn show(response: HashMap<String, Value>, more: bool) {
+    fn show(response: &HashMap<String, Value>, more: bool) {
         trace!("Youdao: parsing response data.");
 
         // 【可选打印项】单词校验后的结果，主要校验字母大小写、单词前含符号、中文简繁体

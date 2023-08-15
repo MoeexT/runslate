@@ -1,4 +1,4 @@
-use std::{env, path::Path};
+use std::env;
 
 use log::debug;
 
@@ -16,35 +16,48 @@ pub fn load_or_panic(key: &str) -> String {
     match result {
         Ok(value) => {
             if value.len() > 0 {
-                debug!("[load_or_panic] get value: {} -> {}", key, value);
-                return value
+                debug!("[load_or_panic] got value: {}.", key);
+                return value;
             }
             panic!("Empty env value: {}", key)
-        },
-        Err(err) => panic!("{:#?}", err),
+        }
+        Err(err) => panic!("Load env {} panic {:#?}", key, err),
     }
 }
 
 pub fn load_or_default(key: &str, default: &str) -> String {
     if let Ok(value) = env::var(key) {
         return if value.len() == 0 {
-            debug!("Empty env value, use default: {} -> {}", key, default);
+            debug!("Empty env value, use default: {}.", key);
             String::from(default)
         } else {
             value
         };
     }
-    debug!("Env not exist, use default: {} -> {}", key, default);
+    debug!("Env not exist, use default: {}.", key);
     String::from(default)
 }
 
-pub async fn load_env_file(env_path: &str) -> Result<(), Error> {
-    let file_path = Path::new(env_path);
+pub async fn load_env_file(file_name: &str) -> Result<(), Error> {
+    let mut file_path = env::current_dir().unwrap().join(file_name);
     if !file_path.exists() {
+        file_path = env::current_exe()
+            .unwrap()
+            .parent()
+            .expect("exe file must be in some directory")
+            .join(file_name);
+    }
+
+    if !file_path.exists() {
+        file_path = home::home_dir().unwrap().join(".runslate").join(file_name);
+    }
+
+    if !file_path.exists() {
+        println!("Program may panic next step.");
         return Err(Error::FileNotExist(String::from(".env file not found.")));
     }
 
-    if let None = dotenv::from_filename(env_path).ok() {
+    if let None = dotenv::from_path(file_path).ok() {
         return Err(Error::OuterCrateInternalError(String::from(
             "[dotenv] Load .env file failed.",
         )));
