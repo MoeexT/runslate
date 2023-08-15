@@ -79,7 +79,7 @@ async fn main() {
     // log ".env loading result"
     match load_env_result {
         Ok(_) => debug!("load .env successfully."),
-        Err(err) => warn!("{:#?}", err),
+        Err(err) => panic!("{:#?}", err),
     }
 
     // log args

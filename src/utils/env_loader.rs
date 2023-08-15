@@ -1,4 +1,4 @@
-use std::{env, path::Path};
+use std::env;
 
 use log::debug;
 
@@ -17,11 +17,11 @@ pub fn load_or_panic(key: &str) -> String {
         Ok(value) => {
             if value.len() > 0 {
                 debug!("[load_or_panic] got value: {}.", key);
-                return value
+                return value;
             }
             panic!("Empty env value: {}", key)
-        },
-        Err(err) => panic!("{:#?}", err),
+        }
+        Err(err) => panic!("Load env {} panic {:#?}", key, err),
     }
 }
 
@@ -38,13 +38,26 @@ pub fn load_or_default(key: &str, default: &str) -> String {
     String::from(default)
 }
 
-pub async fn load_env_file(env_path: &str) -> Result<(), Error> {
-    let file_path = Path::new(env_path);
+pub async fn load_env_file(file_name: &str) -> Result<(), Error> {
+    let mut file_path = env::current_dir().unwrap().join(file_name);
     if !file_path.exists() {
+        file_path = env::current_exe()
+            .unwrap()
+            .parent()
+            .expect("exe file must be in some directory")
+            .join(file_name);
+    }
+
+    if !file_path.exists() {
+        file_path = home::home_dir().unwrap().join(".runslate").join(file_name);
+    }
+
+    if !file_path.exists() {
+        println!("Program may panic next step.");
         return Err(Error::FileNotExist(String::from(".env file not found.")));
     }
 
-    if let None = dotenv::from_filename(env_path).ok() {
+    if let None = dotenv::from_path(file_path).ok() {
         return Err(Error::OuterCrateInternalError(String::from(
             "[dotenv] Load .env file failed.",
         )));
