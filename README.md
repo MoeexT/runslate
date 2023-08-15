@@ -11,7 +11,7 @@ A shell dictionary created by Rust.
 
 ### Binary
 
-Just download the binary file and put it into a directory which has add to `path`.
+Just download the binary file and put it into a directory which has been add to `path`.
 
 ### From source
 
@@ -45,3 +45,8 @@ Just download the binary file and put it into a directory which has add to `path
 + [serde_json](https://docs.rs/serde_json/latest/serde_json/): json parse.
 + [env_logger](https://docs.rs/env_logger/latest/env_logger/): logging.
 + [dotenv](https://docs.rs/dotenv/latest/dotenv/): load env.
+
+## :page_facing_up: Update log
+
++ **2023-08-15 v0.2.0** Save & load cache.
++ **v0.1.0** Main function released which contains Youdao and google api.

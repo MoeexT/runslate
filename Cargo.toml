@@ -1,6 +1,6 @@
 [package]
 name = "runslate"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["MoeexT yuwancumian666@outlook.com"]
 description = "A shell dictionary created by Rust."
@@ -13,8 +13,10 @@ async-trait = "0.1.68"
 clap = { version = "4.3.5", features = ["derive", "env"] }
 dotenv = "0.15.0"
 env_logger = "0.10.0"
+home = "0.5.5"
 log = "0.4.19"
 reqwest = { version = "0.11.18", features = ["json"] }
+serde = { version = "1.0.181", features = ["derive"] }
 serde_json = "1.0.99"
 sha256 = "1.1.4"
 tokio = { version = "1.28.2", features = ["full"] }

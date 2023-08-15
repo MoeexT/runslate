@@ -16,7 +16,7 @@ pub fn load_or_panic(key: &str) -> String {
     match result {
         Ok(value) => {
             if value.len() > 0 {
-                debug!("[load_or_panic] get value: {} -> {}", key, value);
+                debug!("[load_or_panic] got value: {}.", key);
                 return value
             }
             panic!("Empty env value: {}", key)
@@ -28,13 +28,13 @@ pub fn load_or_panic(key: &str) -> String {
 pub fn load_or_default(key: &str, default: &str) -> String {
     if let Ok(value) = env::var(key) {
         return if value.len() == 0 {
-            debug!("Empty env value, use default: {} -> {}", key, default);
+            debug!("Empty env value, use default: {}.", key);
             String::from(default)
         } else {
             value
         };
     }
-    debug!("Env not exist, use default: {} -> {}", key, default);
+    debug!("Env not exist, use default: {}.", key);
     String::from(default)
 }
 

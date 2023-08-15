@@ -55,7 +55,7 @@ impl Translator for Google {
             .await?)
     }
 
-    fn show(response: HashMap<String, Value>, _more: bool) {
+    fn show(response: &HashMap<String, Value>, _more: bool) {
         trace!("Google: parsing response data.");
 
         // 句子
