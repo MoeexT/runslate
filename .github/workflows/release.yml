@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "action"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
@@ -90,7 +90,7 @@ jobs:
       - name: Build archive
         shell: bash
         run: |
-          release_version=$(cargo get version)
+          release_version=$(cargo get 'package.version')
           echo "release_version=${release_version}" >> "${GITHUB_ENV}"
           mkdir archive
           cp LICENSE README.md archive/
