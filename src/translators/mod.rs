@@ -218,7 +218,7 @@ pub fn save_cache(
             let app_dir = home::home_dir().unwrap().join(APP_DIR);
 
             if !app_dir.exists() {
-                fs::create_dir(&app_dir).unwrap();
+                fs::create_dir_all(&app_dir).unwrap();
             }
 
             let file_path = app_dir.join(file_name);
@@ -331,6 +331,6 @@ fn test_save() {
     let app_dir = home::home_dir().unwrap().join(APP_DIR);
 
     if !app_dir.exists() {
-        fs::create_dir(app_dir).unwrap();
+        fs::create_dir_all(app_dir).unwrap();
     }
 }
