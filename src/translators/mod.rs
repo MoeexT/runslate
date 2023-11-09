@@ -7,18 +7,22 @@ use std::{
 };
 
 use async_trait::async_trait;
-use clap::ValueEnum;
+use clap::{Args, ValueEnum};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha256::digest;
 
-use crate::errors::Error;
+use crate::{
+    errors::Error,
+    translators::{google::Google, youdao::Youdao},
+    utils::env_loader,
+};
 
-pub mod google;
-pub mod youdao;
+mod google;
+mod youdao;
 
-const APP_DIR: &str = ".runslate";
+const APP_DIR: &str = ".cache/runslate";
 
 #[async_trait]
 pub trait Translator {
@@ -92,6 +96,105 @@ impl Display for Lang {
 pub struct TranslateRecord {
     pub data: HashMap<String, Value>,
     created_at: u64,
+}
+
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true)]
+pub struct QueryArgs {
+    /// [enum] Translator
+    #[arg(
+        short = 't',
+        long,
+        default_value = "youdao",
+        env = "RUNSLATE_TRANSLATOR"
+    )]
+    pub translator: Translators,
+
+    /// [enum] Source language
+    #[arg(
+        short = 's',
+        long,
+        default_value = "auto",
+        env = "RUNSLATE_SOURCE_LANG"
+    )]
+    pub source_lang: Lang,
+
+    /// [enum] Target language
+    #[arg(short = 'd', long, default_value = "zh", env = "RUNSLATE_TARGET_LANG")]
+    pub target_lang: Lang,
+
+    /// [bool] Print more translation info
+    #[arg(short, long, default_value = "true", env = "RUNSLATE_SHOW_MORE")]
+    pub more: bool,
+
+    /// [bool] Decides if to use cache
+    #[arg(short = 'n', long, default_value = "false", env = "RUNSLATE_NO_CACHE")]
+    pub no_cache: bool,
+
+    /// [bool] Print debug details
+    #[arg(short = 'v', long, env = "RUNSLATE_VERBOSE")]
+    pub verbose: bool,
+
+    /// [strings] Words to translate
+    #[arg(num_args=1.., required = true)]
+    pub words: Vec<String>,
+}
+
+pub async fn translate(args: QueryArgs) {
+    let cache_time = env_loader::load_or_default("RUNSLATE_CACHE_TIME", "300");
+    let cache_time = cache_time.parse::<u64>().or::<u64>(Ok(300)).unwrap();
+
+    debug!("Cache time: {}", cache_time);
+
+    let words = args.words.join(" ");
+    match args.translator {
+        Translators::Google => {
+            if !args.no_cache {
+                if let Ok(response) =
+                    load_cache(&words, &args.target_lang, &args.translator, cache_time)
+                {
+                    info!("Load querying result from cache successfully.");
+                    Google::show(&response.data, args.more);
+                    return;
+                }
+                warn!("Try load cache failed.")
+            }
+
+            match Google::translate(&words, &args.source_lang, &args.target_lang).await {
+                Ok(response) => {
+                    debug!("{:#?}", &response);
+                    Google::show(&response, args.more);
+                    if !args.no_cache {
+                        save_cache(&words, &args.target_lang, &args.translator, response);
+                    }
+                }
+                Err(err) => error!("{:#?}", err),
+            }
+        }
+        Translators::Youdao => {
+            if !args.no_cache {
+                if let Ok(response) =
+                    load_cache(&words, &args.target_lang, &args.translator, cache_time)
+                {
+                    info!("Load querying result from cache successfully.");
+                    Youdao::show(&response.data, args.more);
+                    return;
+                }
+                warn!("Try load cache failed.")
+            }
+
+            match Youdao::translate(&words, &args.source_lang, &args.target_lang).await {
+                Ok(response) => {
+                    debug!("{:#?}", &response);
+                    Youdao::show(&response, args.more);
+                    if !args.no_cache {
+                        save_cache(&words, &args.target_lang, &args.translator, response);
+                    }
+                }
+                Err(err) => error!("{:#?}", err),
+            }
+        }
+    }
 }
 
 pub fn save_cache(
@@ -204,6 +307,23 @@ pub fn load_cache(
     error!("{}", &msg);
 
     Err(Error::OpenFileError(msg))
+}
+
+pub fn clean_cache() {
+    let app_dir = home::home_dir().unwrap().join(APP_DIR);
+    let paths = fs::read_dir(app_dir).unwrap();
+    let mut count = 0;
+
+    for pth in paths {
+        if let Ok(de) = pth {
+            if let Ok(()) = fs::remove_file(&de.path()) {
+                info!("removed: {}", de.path().display());
+                count += 1;
+            }
+        }
+    }
+
+    info!("{count} file(s) have been removed.")
 }
 
 #[test]
