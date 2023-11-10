@@ -3,8 +3,9 @@ use std::env;
 use clap::Parser;
 use log::debug;
 use runslate::{
-    args::{Cli, Commands},
-    translators::{clean_cache, translate},
+    args::{CacheCommands, Cli, Commands},
+    cache::{cache_clean, cache_show},
+    translators::translate,
     utils::env_loader,
 };
 
@@ -24,17 +25,31 @@ async fn main() {
 
     // parse arguments
     let cli = Cli::parse();
+
     let command = cli.command.unwrap_or(Commands::Query(cli.query));
     match command {
-        Commands::Clean(args) => {
+        Commands::Cache(args) => {
+            // set verbose
             if args.verbose {
                 env::set_var("RUST_LOG", "trace");
             }
+
             // init logger
             env_logger::init();
 
-            clean_cache();
-            return;
+            // log ".env loading result"
+            match load_env_result {
+                Ok(_) => debug!("load .env successfully."),
+                Err(err) => panic!("{:#?}", err),
+            }
+
+            // log args
+            debug!("{:#?}", args);
+
+            match args.commands {
+                CacheCommands::Clean => cache_clean(),
+                CacheCommands::Show => cache_show(),
+            }
         }
         Commands::Query(args) => {
             // set verbose
@@ -53,7 +68,6 @@ async fn main() {
 
             // log args
             debug!("{:#?}", args);
-
             translate(args).await;
         }
     }
