@@ -59,6 +59,6 @@ source .env
 
 ## :page_facing_up: Update log
 
-+ **2023-08-15 v0.3.0** Load `.env` file from current dir, exe-file dir, app-dir(~/.runslate/) one by one.
++ **2023-08-15 v0.3.0** Load `.env` file from current dir, app-dir(~/.config/runslate/), exe-file dir one by one.
 + **2023-08-15 v0.2.0** Save & load cache.
 + **v0.1.0** Main function released which contains Youdao and google api.

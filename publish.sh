@@ -92,6 +92,10 @@ function main() {
     '-l')
         update_version 3
         ;;
+    '-')
+        build
+        exit 0
+    ;;
     *)
         help
         exit 0

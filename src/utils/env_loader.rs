@@ -39,17 +39,24 @@ pub fn load_or_default(key: &str, default: &str) -> String {
 }
 
 pub async fn load_env_file(file_name: &str) -> Result<(), Error> {
+    // 1. current directory
     let mut file_path = env::current_dir().unwrap().join(file_name);
+
+    // 2. ~/.config/runslate/
+    if !file_path.exists() {
+        file_path = home::home_dir()
+            .unwrap()
+            .join(".config/runslate")
+            .join(file_name);
+    }
+
+    // 3. current_exe's directory
     if !file_path.exists() {
         file_path = env::current_exe()
             .unwrap()
             .parent()
             .expect("exe file must be in some directory")
             .join(file_name);
-    }
-
-    if !file_path.exists() {
-        file_path = home::home_dir().unwrap().join(".runslate").join(file_name);
     }
 
     if !file_path.exists() {
