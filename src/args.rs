@@ -1,10 +1,10 @@
-use clap::{Parser, Subcommand, Args};
+use clap::{Args, Parser, Subcommand};
 
 use crate::translators::QueryArgs;
 
 #[derive(Debug, Parser)]
-#[command(name = "")]
 #[command(author, version, about, long_about = None)]
+#[command(subcommand_precedence_over_arg = true)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -15,14 +15,28 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    Clean(CleanArgs),
+    /// Manage cache
+    Cache(CacheArgs),
+
+    /// Default command
     Query(QueryArgs),
 }
 
 #[derive(Debug, Args)]
-#[command(args_conflicts_with_subcommands = true)]
-pub struct CleanArgs {
+pub struct CacheArgs {
+    #[command(subcommand)]
+    pub commands: CacheCommands,
+
     /// [bool] Print debug details
     #[arg(short = 'v', long, env = "RUNSLATE_VERBOSE")]
     pub verbose: bool,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CacheCommands {
+    /// Clean cache files
+    Clean,
+
+    /// Show cache files
+    Show,
 }

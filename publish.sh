@@ -71,14 +71,14 @@ function update_version() {
 }
 
 function help() {
-    echo "    -h update main version."
-    echo "    -m update feature version."
-    echo "    -l update fix version."
+    echo '    -h update main version.'
+    echo '    -m update feature version.'
+    echo '    -l update fix version.'
 }
 
 function main() {
-    if [ ! -f Cargo.toml ]; then
-        echo Cargo.toml not exist.
+    if [ ! -f 'Cargo.toml' ]; then
+        echo 'Cargo.toml does not exist.'
         exit 1
     fi
 
@@ -92,7 +92,11 @@ function main() {
     '-l')
         update_version 3
         ;;
-    'help')
+    '-')
+        build
+        exit 0
+    ;;
+    *)
         help
         exit 0
         ;;

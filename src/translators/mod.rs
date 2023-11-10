@@ -1,8 +1,6 @@
 use std::{
     collections::HashMap,
     fmt::Display,
-    fs::{self, File},
-    io::{Read, Write},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -14,6 +12,7 @@ use serde_json::Value;
 use sha256::digest;
 
 use crate::{
+    cache::{read_file, remove_file, write_file},
     errors::Error,
     translators::{google::Google, youdao::Youdao},
     utils::env_loader,
@@ -21,8 +20,6 @@ use crate::{
 
 mod google;
 mod youdao;
-
-const APP_DIR: &str = ".cache/runslate";
 
 #[async_trait]
 pub trait Translator {
@@ -150,8 +147,7 @@ pub async fn translate(args: QueryArgs) {
     match args.translator {
         Translators::Google => {
             if !args.no_cache {
-                if let Ok(response) =
-                    load_cache(&words, &args.target_lang, &args.translator, cache_time)
+                if let Ok(response) = load(&words, &args.target_lang, &args.translator, cache_time)
                 {
                     info!("Load querying result from cache successfully.");
                     Google::show(&response.data, args.more);
@@ -162,10 +158,10 @@ pub async fn translate(args: QueryArgs) {
 
             match Google::translate(&words, &args.source_lang, &args.target_lang).await {
                 Ok(response) => {
-                    debug!("{:#?}", &response);
+                    // debug!("{:#?}", &response);
                     Google::show(&response, args.more);
                     if !args.no_cache {
-                        save_cache(&words, &args.target_lang, &args.translator, response);
+                        save(&words, &args.target_lang, &args.translator, response);
                     }
                 }
                 Err(err) => error!("{:#?}", err),
@@ -173,8 +169,7 @@ pub async fn translate(args: QueryArgs) {
         }
         Translators::Youdao => {
             if !args.no_cache {
-                if let Ok(response) =
-                    load_cache(&words, &args.target_lang, &args.translator, cache_time)
+                if let Ok(response) = load(&words, &args.target_lang, &args.translator, cache_time)
                 {
                     info!("Load querying result from cache successfully.");
                     Youdao::show(&response.data, args.more);
@@ -185,10 +180,10 @@ pub async fn translate(args: QueryArgs) {
 
             match Youdao::translate(&words, &args.source_lang, &args.target_lang).await {
                 Ok(response) => {
-                    debug!("{:#?}", &response);
+                    // debug!("{:#?}", &response);
                     Youdao::show(&response, args.more);
                     if !args.no_cache {
-                        save_cache(&words, &args.target_lang, &args.translator, response);
+                        save(&words, &args.target_lang, &args.translator, response);
                     }
                 }
                 Err(err) => error!("{:#?}", err),
@@ -197,12 +192,7 @@ pub async fn translate(args: QueryArgs) {
     }
 }
 
-pub fn save_cache(
-    query: &str,
-    tl: &Lang,
-    translator: &Translators,
-    value: HashMap<String, Value>,
-) -> bool {
+fn save(query: &str, tl: &Lang, translator: &Translators, value: HashMap<String, Value>) {
     let cur_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -211,126 +201,51 @@ pub fn save_cache(
         created_at: cur_time,
         data: value,
     };
+    let file_name = digest(String::from(query) + &tl.to_string() + &translator.to_string());
 
     match serde_json::to_string(&record) {
         Ok(content) => {
-            let file_name = digest(String::from(query) + &tl.to_string() + &translator.to_string());
-            let app_dir = home::home_dir().unwrap().join(APP_DIR);
-
-            if !app_dir.exists() {
-                fs::create_dir_all(&app_dir).unwrap();
-            }
-
-            let file_path = app_dir.join(file_name);
-            match File::create(&file_path) {
-                Ok(mut file) => match file.write_all(content.as_bytes()) {
-                    Ok(()) => {
-                        debug!(
-                            "Serialize {} to file {:?} successfully.",
-                            query,
-                            file_path.display()
-                        );
-                        return true;
-                    }
-                    Err(e) => {
-                        error!("Write file ({:?}) failed: {:?}", file_path.display(), e);
-                        return false;
-                    }
-                },
-                Err(e) => {
-                    error!("Open file ({:?}) failed: {:?}", file_path.display(), e);
-                    return false;
-                }
-            }
+            write_file(file_name, content);
         }
         Err(e) => {
             error!("Serialize query ({}) failed: {:?}", query, e);
-            return false;
         }
     }
 }
 
-pub fn load_cache(
+fn load(
     query: &str,
     tl: &Lang,
     translator: &Translators,
     expire: u64,
 ) -> Result<TranslateRecord, Error> {
-    let file_name = digest(String::from(query) + &tl.to_string() + &translator.to_string());
-    let app_dir = home::home_dir().unwrap().join(APP_DIR);
-    let file_path = app_dir.join(file_name);
+    let file_name = file_name(query, tl, translator);
+    let content = read_file(&file_name)?;
 
-    if !file_path.exists() {
-        let msg = format!("Cache file doesn't exit: {}.", file_path.display());
-        warn!("{}", msg);
+    if let Ok(record) = serde_json::from_str::<TranslateRecord>(&content) {
+        let cur_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        if record.created_at + expire > cur_time {
+            // debug!("Found available cache: {:#?}", &record);
+            return Ok(record);
+        }
+
+        let msg = format!("Cache expired.");
+        warn!("{}", &msg);
+        remove_file(&file_name);
+
         return Err(Error::CacheNotFound(msg));
     }
 
-    if let Ok(mut file) = File::open(&file_path) {
-        info!("Reading content from cache file {}", &file_path.display());
-        let mut content = String::new();
-
-        if let Ok(_) = file.read_to_string(&mut content) {
-            if let Ok(record) = serde_json::from_str::<TranslateRecord>(&content) {
-                let cur_time = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs();
-
-                if record.created_at + expire > cur_time {
-                    debug!("Found available cache: {:#?}", &record);
-                    return Ok(record);
-                }
-
-                let msg = format!("Cache {} has been expired.", file_path.display());
-                warn!("{}", &msg);
-
-                let _ = fs::remove_file(&file_path);
-                info!("Dropped cache file {}.", file_path.display());
-
-                return Err(Error::CacheNotFound(msg));
-            }
-
-            let msg = format!("Deserialize {} failed", file_path.display());
-            error!("{}", &msg);
-
-            return Err(Error::DeserializeFailed(msg));
-        }
-
-        let msg = format!("Read file ({:?}) failed", file_path.display());
-        error!("{}", msg);
-
-        return Err(Error::ReadFileError(msg));
-    }
-
-    let msg = format!("Open file ({:?}) failed", file_path.display());
+    let msg = format!("Deserialize cache failed.");
     error!("{}", &msg);
 
-    Err(Error::OpenFileError(msg))
+    return Err(Error::DeserializeFailed(msg));
 }
 
-pub fn clean_cache() {
-    let app_dir = home::home_dir().unwrap().join(APP_DIR);
-    let paths = fs::read_dir(app_dir).unwrap();
-    let mut count = 0;
-
-    for pth in paths {
-        if let Ok(de) = pth {
-            if let Ok(()) = fs::remove_file(&de.path()) {
-                info!("removed: {}", de.path().display());
-                count += 1;
-            }
-        }
-    }
-
-    info!("{count} file(s) have been removed.")
-}
-
-#[test]
-fn test_save() {
-    let app_dir = home::home_dir().unwrap().join(APP_DIR);
-
-    if !app_dir.exists() {
-        fs::create_dir_all(app_dir).unwrap();
-    }
+fn file_name(query: &str, tl: &Lang, translator: &Translators) -> String {
+    digest(String::from(query) + &tl.to_string() + &translator.to_string())
 }

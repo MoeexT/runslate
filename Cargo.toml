@@ -1,6 +1,6 @@
 [package]
 name = "runslate"
-version = "0.3.0"
+version = "0.4.1"
 edition = "2021"
 authors = ["MoeexT yuwancumian666@outlook.com"]
 description = "A shell dictionary created by Rust."
