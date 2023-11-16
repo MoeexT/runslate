@@ -4,7 +4,7 @@ use clap::Parser;
 use log::debug;
 use runslate::{
     args::{CacheCommands, Cli, Commands},
-    cache::{cache_clean, cache_show},
+    cache,
     translators::translate,
     utils::env_loader,
 };
@@ -47,8 +47,9 @@ async fn main() {
             debug!("{:#?}", args);
 
             match args.commands {
-                CacheCommands::Clean => cache_clean(),
-                CacheCommands::Show => cache_show(),
+                CacheCommands::Clean => cache::cmd::clean(),
+                CacheCommands::Show => cache::cmd::list(),
+                CacheCommands::Purge => cache::cmd::purge(),
             }
         }
         Commands::Query(args) => {

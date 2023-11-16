@@ -34,9 +34,13 @@ pub struct CacheArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum CacheCommands {
-    /// Clean cache files
+    /// Clean cache
     Clean,
 
-    /// Show cache files
+    /// Show cache, alias: list
+    #[command(alias="list")]
     Show,
+
+    /// Remove expired cache
+    Purge,
 }
