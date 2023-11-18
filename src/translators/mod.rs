@@ -1,21 +1,16 @@
-use std::{
-    collections::HashMap,
-    fmt::Display,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{collections::HashMap, fmt::Display};
 
 use async_trait::async_trait;
 use clap::{Args, ValueEnum};
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sha256::digest;
 
 use crate::{
-    cache::{read_file, remove_file, write_file},
+    cache,
     errors::Error,
     translators::{google::Google, youdao::Youdao},
-    utils::env_loader,
 };
 
 mod google;
@@ -89,11 +84,11 @@ impl Display for Lang {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct TranslateRecord {
-    pub data: HashMap<String, Value>,
-    created_at: u64,
-}
+// #[derive(Debug, PartialEq, Serialize, Deserialize)]
+// pub struct TranslateRecord {
+//     pub data: HashMap<String, Value>,
+//     created_at: u64,
+// }
 
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -138,19 +133,18 @@ pub struct QueryArgs {
 }
 
 pub async fn translate(args: QueryArgs) {
-    let cache_time = env_loader::load_or_default("RUNSLATE_CACHE_TIME", "300");
-    let cache_time = cache_time.parse::<u64>().or::<u64>(Ok(300)).unwrap();
-
-    debug!("Cache time: {}", cache_time);
-
     let words = args.words.join(" ");
     match args.translator {
         Translators::Google => {
             if !args.no_cache {
-                if let Ok(response) = load(&words, &args.target_lang, &args.translator, cache_time)
-                {
+                if let Ok(response) = load(
+                    &words,
+                    &args.source_lang,
+                    &args.target_lang,
+                    &args.translator,
+                ) {
                     info!("Load querying result from cache successfully.");
-                    Google::show(&response.data, args.more);
+                    Google::show(&response, args.more);
                     return;
                 }
                 warn!("Try load cache failed.")
@@ -161,7 +155,13 @@ pub async fn translate(args: QueryArgs) {
                     // debug!("{:#?}", &response);
                     Google::show(&response, args.more);
                     if !args.no_cache {
-                        save(&words, &args.target_lang, &args.translator, response);
+                        save(
+                            &words,
+                            &args.target_lang,
+                            &args.source_lang,
+                            &args.translator,
+                            response,
+                        );
                     }
                 }
                 Err(err) => error!("{:#?}", err),
@@ -169,10 +169,14 @@ pub async fn translate(args: QueryArgs) {
         }
         Translators::Youdao => {
             if !args.no_cache {
-                if let Ok(response) = load(&words, &args.target_lang, &args.translator, cache_time)
-                {
+                if let Ok(response) = load(
+                    &words,
+                    &args.source_lang,
+                    &args.target_lang,
+                    &args.translator,
+                ) {
                     info!("Load querying result from cache successfully.");
-                    Youdao::show(&response.data, args.more);
+                    Youdao::show(&response, args.more);
                     return;
                 }
                 warn!("Try load cache failed.")
@@ -183,7 +187,13 @@ pub async fn translate(args: QueryArgs) {
                     // debug!("{:#?}", &response);
                     Youdao::show(&response, args.more);
                     if !args.no_cache {
-                        save(&words, &args.target_lang, &args.translator, response);
+                        save(
+                            &words,
+                            &args.source_lang,
+                            &args.target_lang,
+                            &args.translator,
+                            response,
+                        );
                     }
                 }
                 Err(err) => error!("{:#?}", err),
@@ -192,60 +202,52 @@ pub async fn translate(args: QueryArgs) {
     }
 }
 
-fn save(query: &str, tl: &Lang, translator: &Translators, value: HashMap<String, Value>) {
-    let cur_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let record = TranslateRecord {
-        created_at: cur_time,
-        data: value,
-    };
-    let file_name = digest(String::from(query) + &tl.to_string() + &translator.to_string());
-
-    match serde_json::to_string(&record) {
-        Ok(content) => {
-            write_file(file_name, content);
-        }
-        Err(e) => {
-            error!("Serialize query ({}) failed: {:?}", query, e);
-        }
-    }
+fn save(
+    query: &str,
+    sl: &Lang,
+    tl: &Lang,
+    translator: &Translators,
+    value: HashMap<String, Value>,
+) {
+    // let file_name = digest(String::from(query) + &sl.to_string() + &tl.to_string() + &translator.to_string());
+    let file_name = file_name(query, sl, tl, translator);
+    cache::set(&file_name, value);
 }
 
 fn load(
     query: &str,
+    sl: &Lang,
     tl: &Lang,
     translator: &Translators,
-    expire: u64,
-) -> Result<TranslateRecord, Error> {
-    let file_name = file_name(query, tl, translator);
-    let content = read_file(&file_name)?;
-
-    if let Ok(record) = serde_json::from_str::<TranslateRecord>(&content) {
-        let cur_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
-        if record.created_at + expire > cur_time {
-            // debug!("Found available cache: {:#?}", &record);
-            return Ok(record);
-        }
-
-        let msg = format!("Cache expired.");
-        warn!("{}", &msg);
-        remove_file(&file_name);
-
-        return Err(Error::CacheNotFound(msg));
-    }
-
-    let msg = format!("Deserialize cache failed.");
-    error!("{}", &msg);
-
-    return Err(Error::DeserializeFailed(msg));
+) -> Result<HashMap<String, Value>, Error> {
+    let file_name = file_name(query, sl, tl, translator);
+    cache::get::<HashMap<String, Value>>(file_name)
 }
 
-fn file_name(query: &str, tl: &Lang, translator: &Translators) -> String {
-    digest(String::from(query) + &tl.to_string() + &translator.to_string())
+fn file_name(query: &str, sl: &Lang, tl: &Lang, translator: &Translators) -> String {
+    let invalid_path_chars = Regex::new("[/\\\\?%*:|\"<>,;= ]").unwrap();
+    let multi_stub = Regex::new("-{2,}").unwrap();
+
+    let sentence = query.trim();
+    let sentence = invalid_path_chars.replace_all(sentence, "-");
+    let sentence = multi_stub.replace_all(&sentence, "-");
+    format!("{sl}-{translator}-{tl}_{sentence}")
+}
+
+mod test {
+    #[cfg(test)]
+    use crate::translators::{file_name, Lang, Translators};
+
+    #[test]
+    fn test_file_name() {
+        println!(
+            "{}",
+            file_name(
+                " query hello /\\?%*:|\"<>,;= world",
+                &Lang::Auto,
+                &Lang::Ar,
+                &Translators::Google
+            )
+        )
+    }
 }
