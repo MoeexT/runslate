@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display};
 
 use async_trait::async_trait;
 use clap::{Args, ValueEnum};
-use log::{error, info, warn};
+use log::{error, info, warn, debug};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -28,7 +28,9 @@ pub trait Translator {
 
 #[derive(Clone, Debug, ValueEnum, Serialize, Deserialize)]
 pub enum Translators {
+    #[clap(alias="g")]
     Google,
+    #[clap(aliases=&["y", "d"])]
     Youdao,
 }
 
@@ -152,7 +154,7 @@ pub async fn translate(args: QueryArgs) {
 
             match Google::translate(&words, &args.source_lang, &args.target_lang).await {
                 Ok(response) => {
-                    // debug!("{:#?}", &response);
+                    debug!("{:#?}", &response);
                     Google::show(&response, args.more);
                     if !args.no_cache {
                         save(
@@ -184,7 +186,7 @@ pub async fn translate(args: QueryArgs) {
 
             match Youdao::translate(&words, &args.source_lang, &args.target_lang).await {
                 Ok(response) => {
-                    // debug!("{:#?}", &response);
+                    debug!("{:#?}", &response);
                     Youdao::show(&response, args.more);
                     if !args.no_cache {
                         save(
