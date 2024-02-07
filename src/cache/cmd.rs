@@ -1,13 +1,16 @@
 use std::{
     cmp,
+    collections::HashMap,
     fs::{self, DirEntry},
 };
 
-use log::info;
+use log::{error, info};
+use serde_json::Value;
 
 use crate::{
     cache::util::unpack,
-    utils::file::{fmt_size, iter_dir},
+    errors::Error,
+    utils::file::{fmt_size, iter_dir}, translators::Translators,
 };
 
 /// List all cache files in `APP_DIR`.
@@ -60,37 +63,62 @@ pub fn clean() {
                 info!("removed: {:?}", de.file_name());
                 true
             }
-            Err(..) => false
+            Err(..) => false,
         }
     });
 
     let (s_size, s_size_u) = fmt_size(s_size);
-    println!("Removed {}/{} file(s), {} {}, file(s) in total.", del, sum, s_size, s_size_u)
+    println!(
+        "Removed {}/{} file(s), {} {}, file(s) in total.",
+        del, sum, s_size, s_size_u
+    )
 }
 
 /// Remove expired file
 pub fn purge() {
     let mut s_size = 0u64;
 
-    let (del, sum) = iter_dir(|de: DirEntry| {
-        match unpack(de.file_name()) {
-            Ok(..) => false,
-            Err(..) => {
-                let f_size = fs::metadata(de.path()).unwrap().len();
-                match fs::remove_file(de.path()) {
-                    Err(..) => false,
-                    Ok(..) => {
-                        s_size += f_size;
-                        info!("removed: {:?}", de.file_name());
-                        true
-                    }
+    let (del, sum) = iter_dir(|de: DirEntry| match unpack(de.file_name()) {
+        Ok(..) => false,
+        Err(..) => {
+            let f_size = fs::metadata(de.path()).unwrap().len();
+            match fs::remove_file(de.path()) {
+                Err(..) => false,
+                Ok(..) => {
+                    s_size += f_size;
+                    info!("removed: {:?}", de.file_name());
+                    true
                 }
             }
         }
     });
 
     let (s_size, s_size_u) = fmt_size(s_size);
-    println!("Removed {}/{} file(s), {} {}, file(s) in total.", del, sum, s_size, s_size_u)
+    println!(
+        "Removed {}/{} file(s), {} {}, file(s) in total.",
+        del, sum, s_size, s_size_u
+    )
+}
+
+/// View cache file content
+pub fn view(hash: String) {
+    iter_dir(|de: DirEntry| {
+        if de.file_name().to_string_lossy().starts_with(&hash) {
+            match unpack(de.file_name()) {
+                Ok(record) => match record.t_type {
+                    Translators::Google => match serde_json::from_str::<HashMap<String, Value>>(&record.data) {
+                    Ok(value) => {
+                        Google::show()
+                    },
+                    Err(e) => error!("Deserialize value failed: {e}"),
+                },
+                    Translators::Youdao => todo!(),
+                },
+                Err(..) => error!("Deserialize file failed"),
+            }
+        }
+        true
+    });
 }
 
 mod test {

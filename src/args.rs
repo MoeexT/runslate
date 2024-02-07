@@ -43,4 +43,9 @@ pub enum CacheCommands {
 
     /// Remove expired cache
     Purge,
+
+    /// View cache content
+    View {
+        hash: String,
+    },
 }

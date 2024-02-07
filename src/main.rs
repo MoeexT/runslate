@@ -50,6 +50,7 @@ async fn main() {
                 CacheCommands::Clean => cache::cmd::clean(),
                 CacheCommands::Show => cache::cmd::list(),
                 CacheCommands::Purge => cache::cmd::purge(),
+                CacheCommands::View { hash } => cache::cmd::view(hash),
             }
         }
         Commands::Query(args) => {

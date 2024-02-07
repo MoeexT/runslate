@@ -3,9 +3,9 @@ use std::{collections::HashMap, fmt::Display};
 use async_trait::async_trait;
 use clap::{Args, ValueEnum};
 use log::{error, info, warn, debug};
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha256::digest;
 
 use crate::{
     cache,
@@ -26,7 +26,7 @@ pub trait Translator {
     fn show(response: &HashMap<String, Value>, more: bool);
 }
 
-#[derive(Clone, Debug, ValueEnum, Serialize, Deserialize)]
+#[derive(Clone, Debug, ValueEnum, Serialize, Deserialize, PartialEq)]
 pub enum Translators {
     #[clap(alias="g")]
     Google,
@@ -211,7 +211,6 @@ fn save(
     translator: &Translators,
     value: HashMap<String, Value>,
 ) {
-    // let file_name = digest(String::from(query) + &sl.to_string() + &tl.to_string() + &translator.to_string());
     let file_name = file_name(query, sl, tl, translator);
     cache::set(&file_name, value);
 }
@@ -227,13 +226,7 @@ fn load(
 }
 
 fn file_name(query: &str, sl: &Lang, tl: &Lang, translator: &Translators) -> String {
-    let invalid_path_chars = Regex::new("[/\\\\?%*:|\"<>,;= ]").unwrap();
-    let multi_stub = Regex::new("-{2,}").unwrap();
-
-    let sentence = query.trim();
-    let sentence = invalid_path_chars.replace_all(sentence, "-");
-    let sentence = multi_stub.replace_all(&sentence, "-");
-    format!("{sl}-{translator}-{tl}_{sentence}")
+    digest(sl.to_string() + &translator.to_string() + &tl.to_string() + query)
 }
 
 mod test {

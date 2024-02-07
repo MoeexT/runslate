@@ -3,7 +3,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
     errors::Error,
-    utils::file::{remove_file, write_string},
+    utils::file::{remove_file, write_string}, translators::Translators,
 };
 
 use self::util::{pack, unpack};
@@ -13,6 +13,7 @@ pub(self) mod util;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct CacheRecord {
+    t_type: Translators,
     data: String,
     created_at: u64,
 }
