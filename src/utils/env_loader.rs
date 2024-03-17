@@ -38,7 +38,7 @@ pub fn load_or_default(key: &str, default: &str) -> String {
     String::from(default)
 }
 
-pub async fn load_env_file(file_name: &str) -> Result<(), Error> {
+pub fn load_env_file(file_name: &str) -> Result<String, Error> {
     // 1. current directory
     let mut file_path = env::current_dir().unwrap().join(file_name);
 
@@ -60,17 +60,16 @@ pub async fn load_env_file(file_name: &str) -> Result<(), Error> {
     }
 
     if !file_path.exists() {
-        println!("Program may panic next step.");
         return Err(Error::FileNotExist(String::from(".env file not found.")));
     }
 
-    if let None = dotenv::from_path(file_path).ok() {
+    if let None = dotenv::from_path(&file_path).ok() {
         return Err(Error::OuterCrateInternalError(String::from(
             "[dotenv] Load .env file failed.",
         )));
     }
 
-    Ok(())
+    Ok(format!("{:?}", file_path))
 }
 
 pub fn clear_empty_env(envs: Vec<&str>) {
