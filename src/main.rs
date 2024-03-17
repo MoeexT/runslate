@@ -1,7 +1,7 @@
 use std::env;
 
 use clap::Parser;
-use log::debug;
+use log::{debug, info};
 use runslate::{
     args::{CacheCommands, Cli, Commands},
     cache,
@@ -12,8 +12,9 @@ use runslate::{
 #[tokio::main]
 async fn main() {
     // load .env for parsing arguments
-    let load_env_result = env_loader::load_env_file(".env").await;
-
+    env::set_var("RUST_LOG", "trace");
+    env_logger::init();
+    let load_result = env_loader::load_env_file(".env").ok();
     // clear empty env, or related option will report error
     env_loader::clear_empty_env(vec![
         "RUNSLATE_TRANSLATOR",
@@ -25,26 +26,19 @@ async fn main() {
 
     // parse arguments
     let cli = Cli::parse();
-
     let command = cli.command.unwrap_or(Commands::Query(cli.query));
     match command {
         Commands::Cache(args) => {
             // set verbose
-            if args.verbose {
-                env::set_var("RUST_LOG", "trace");
+            if !args.verbose {
+                log::set_max_level(log::LevelFilter::Off);
             }
-
-            // init logger
-            env_logger::init();
-
-            // log ".env loading result"
-            match load_env_result {
-                Ok(_) => debug!("load .env successfully."),
-                Err(err) => panic!("{:#?}", err),
-            }
-
             // log args
             debug!("{:#?}", args);
+            info!(
+                "Load file .env: {}",
+                load_result.unwrap_or("doesn't exist".to_string())
+            );
 
             match args.commands {
                 CacheCommands::Clean => cache::cmd::clean(),
@@ -54,21 +48,16 @@ async fn main() {
         }
         Commands::Query(args) => {
             // set verbose
-            if args.verbose {
-                env::set_var("RUST_LOG", "trace");
+            if !args.verbose {
+                log::set_max_level(log::LevelFilter::Off);
             }
-
-            // init logger
-            env_logger::init();
-
-            // log ".env loading result"
-            match load_env_result {
-                Ok(_) => debug!("load .env successfully."),
-                Err(err) => panic!("{:#?}", err),
-            }
-
             // log args
             debug!("{:#?}", args);
+            info!(
+                "Load file .env: {}",
+                load_result.unwrap_or("doesn't exist".to_string())
+            );
+
             translate(args).await;
         }
     }
