@@ -12,7 +12,9 @@ use runslate::{
 #[tokio::main]
 async fn main() {
     // load .env for parsing arguments
-    env::set_var("RUST_LOG", "trace");
+    unsafe {
+        env::set_var("RUST_LOG", "trace");
+    }
     env_logger::init();
     let load_result = env_loader::load_env_file(".env").ok();
     // clear empty env, or related option will report error

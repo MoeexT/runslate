@@ -32,10 +32,15 @@ pub trait Translator {
 pub enum Translators {
     #[clap(alias = "g")]
     Google,
+    
     #[clap(aliases=&["y"])]
     Youdao,
+    
     #[clap(aliases=&["d"])]
     DictionaryApi,
+
+    #[clap(alias = "e")]
+    Ecdict,
 }
 
 #[derive(Clone, Debug, ValueEnum, Serialize, Deserialize)]
@@ -64,6 +69,7 @@ impl Display for Translators {
             Translators::Google => write!(f, "google"),
             Translators::Youdao => write!(f, "youdao"),
             Translators::DictionaryApi => write!(f, "dictionaryapi"),
+            Translators::Ecdict => write!(f, "ecdict"),
         }
     }
 }
@@ -145,6 +151,10 @@ pub async fn translate(args: QueryArgs) {
         Translators::Google => &Google {},
         Translators::Youdao => &Youdao {},
         Translators::DictionaryApi => &DictionaryApi {},
+        Translators::Ecdict => {
+            use crate::db::ecdict::Ecdict;
+            &Ecdict {}
+        }
     };
     if !args.no_cache {
         if let Ok(response) = load(
