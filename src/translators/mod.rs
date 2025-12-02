@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display};
 
 use async_trait::async_trait;
 use clap::{Args, ValueEnum};
-use log::{error, info, warn, debug};
+use log::{debug, error, info, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -10,28 +10,32 @@ use serde_json::Value;
 use crate::{
     cache,
     errors::Error,
-    translators::{google::Google, youdao::Youdao},
+    translators::{dictionaryapi::DictionaryApi, google::Google, youdao::Youdao},
 };
 
+mod dictionaryapi;
 mod google;
 mod youdao;
 
 #[async_trait]
 pub trait Translator {
     async fn translate(
+        &self,
         words: &str,
         source: &Lang,
         target: &Lang,
     ) -> Result<HashMap<String, Value>, reqwest::Error>;
-    fn show(response: &HashMap<String, Value>, more: bool);
+    fn show(&self, response: &HashMap<String, Value>, more: bool);
 }
 
 #[derive(Clone, Debug, ValueEnum, Serialize, Deserialize)]
 pub enum Translators {
-    #[clap(alias="g")]
+    #[clap(alias = "g")]
     Google,
-    #[clap(aliases=&["y", "d"])]
+    #[clap(aliases=&["y"])]
     Youdao,
+    #[clap(aliases=&["d"])]
+    DictionaryApi,
 }
 
 #[derive(Clone, Debug, ValueEnum, Serialize, Deserialize)]
@@ -59,6 +63,7 @@ impl Display for Translators {
         match self {
             Translators::Google => write!(f, "google"),
             Translators::Youdao => write!(f, "youdao"),
+            Translators::DictionaryApi => write!(f, "dictionaryapi"),
         }
     }
 }
@@ -136,71 +141,40 @@ pub struct QueryArgs {
 
 pub async fn translate(args: QueryArgs) {
     let words = args.words.join(" ");
-    match args.translator {
-        Translators::Google => {
-            if !args.no_cache {
-                if let Ok(response) = load(
-                    &words,
-                    &args.source_lang,
-                    &args.target_lang,
-                    &args.translator,
-                ) {
-                    info!("Load querying result from cache successfully.");
-                    Google::show(&response, args.more);
-                    return;
-                }
-                warn!("Try load cache failed.")
-            }
+    let translator: &dyn Translator = match args.translator {
+        Translators::Google => &Google {},
+        Translators::Youdao => &Youdao {},
+        Translators::DictionaryApi => &DictionaryApi {},
+    };
+    if !args.no_cache {
+        if let Ok(response) = load(
+            &words,
+            &args.source_lang,
+            &args.target_lang,
+            &args.translator,
+        ) {
+            info!("Load querying result from cache successfully.");
+            translator.show(&response, args.more);
+            return;
+        }
+        warn!("Try load cache failed.")
+    }
 
-            match Google::translate(&words, &args.source_lang, &args.target_lang).await {
-                Ok(response) => {
-                    debug!("{:#?}", &response);
-                    Google::show(&response, args.more);
-                    if !args.no_cache {
-                        save(
-                            &words,
-                            &args.target_lang,
-                            &args.source_lang,
-                            &args.translator,
-                            response,
-                        );
-                    }
-                }
-                Err(err) => error!("{:#?}", err),
+    match translator.translate(&words, &args.source_lang, &args.target_lang).await {
+        Ok(response) => {
+            debug!("{:#?}", &response);
+            translator.show(&response, args.more);
+            if !args.no_cache {
+                save(
+                    &words,
+                    &args.target_lang,
+                    &args.source_lang,
+                    &args.translator,
+                    response,
+                );
             }
         }
-        Translators::Youdao => {
-            if !args.no_cache {
-                if let Ok(response) = load(
-                    &words,
-                    &args.source_lang,
-                    &args.target_lang,
-                    &args.translator,
-                ) {
-                    info!("Load querying result from cache successfully.");
-                    Youdao::show(&response, args.more);
-                    return;
-                }
-                warn!("Try load cache failed.")
-            }
-
-            match Youdao::translate(&words, &args.source_lang, &args.target_lang).await {
-                Ok(response) => {
-                    debug!("{:#?}", &response);
-                    Youdao::show(&response, args.more);
-                    if !args.no_cache {
-                        save(
-                            &words,
-                            &args.source_lang,
-                            &args.target_lang,
-                            &args.translator,
-                            response,
-                        );
-                    }
-                }
-                Err(err) => error!("{:#?}", err),
-            }
-        }
+        Err(err) => error!("{:#?}", err),
     }
 }
 

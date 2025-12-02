@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use log::{debug, trace};
 use reqwest::{Client, Error};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::utils::{
@@ -14,11 +15,13 @@ use super::{Lang, Translator};
 
 const GOOGLE_URL: &str = "https://translate.googleapis.com/translate_a/single";
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Google;
 
 #[async_trait]
 impl Translator for Google {
     async fn translate(
+        &self,
         words: &str,
         source: &Lang,
         target: &Lang,
@@ -55,7 +58,7 @@ impl Translator for Google {
             .await?)
     }
 
-    fn show(response: &HashMap<String, Value>, _more: bool) {
+    fn show(&self, response: &HashMap<String, Value>, _more: bool) {
         trace!("Google: parsing response data.");
 
         // 句子
