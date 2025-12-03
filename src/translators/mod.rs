@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display};
+use std::fmt::Display;
 
 use async_trait::async_trait;
 use clap::{Args, ValueEnum};
@@ -10,32 +10,28 @@ use serde_json::Value;
 use crate::{
     cache,
     errors::Error,
-    translators::{dictionaryapi::DictionaryApi, google::Google, youdao::Youdao},
+    translators::{dictionaryapi::DictionaryApi, ecdict::Ecdict, google::Google, youdao::Youdao},
 };
 
 mod dictionaryapi;
+pub mod ecdict;
 mod google;
 mod youdao;
 
 #[async_trait]
 pub trait Translator {
-    async fn translate(
-        &self,
-        words: &str,
-        source: &Lang,
-        target: &Lang,
-    ) -> Result<HashMap<String, Value>, reqwest::Error>;
-    fn show(&self, response: &HashMap<String, Value>, more: bool);
+    async fn translate(&self, words: &str, source: &Lang, target: &Lang) -> Result<Value, Error>;
+    fn show(&self, response: &Value, more: bool);
 }
 
 #[derive(Clone, Debug, ValueEnum, Serialize, Deserialize)]
 pub enum Translators {
     #[clap(alias = "g")]
     Google,
-    
+
     #[clap(aliases=&["y"])]
     Youdao,
-    
+
     #[clap(aliases=&["d"])]
     DictionaryApi,
 
@@ -97,12 +93,6 @@ impl Display for Lang {
     }
 }
 
-// #[derive(Debug, PartialEq, Serialize, Deserialize)]
-// pub struct TranslateRecord {
-//     pub data: HashMap<String, Value>,
-//     created_at: u64,
-// }
-
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct QueryArgs {
@@ -145,16 +135,16 @@ pub struct QueryArgs {
     pub words: Vec<String>,
 }
 
-pub async fn translate(args: QueryArgs) {
+pub async fn translate(mut args: QueryArgs) {
     let words = args.words.join(" ");
     let translator: &dyn Translator = match args.translator {
-        Translators::Google => &Google {},
-        Translators::Youdao => &Youdao {},
         Translators::DictionaryApi => &DictionaryApi {},
         Translators::Ecdict => {
-            use crate::db::ecdict::Ecdict;
+            args.no_cache = true;
             &Ecdict {}
-        }
+        },
+        Translators::Google => &Google {},
+        Translators::Youdao => &Youdao {},
     };
     if !args.no_cache {
         if let Ok(response) = load(
@@ -170,7 +160,10 @@ pub async fn translate(args: QueryArgs) {
         warn!("Try load cache failed.")
     }
 
-    match translator.translate(&words, &args.source_lang, &args.target_lang).await {
+    match translator
+        .translate(&words, &args.source_lang, &args.target_lang)
+        .await
+    {
         Ok(response) => {
             debug!("{:#?}", &response);
             translator.show(&response, args.more);
@@ -188,26 +181,14 @@ pub async fn translate(args: QueryArgs) {
     }
 }
 
-fn save(
-    query: &str,
-    sl: &Lang,
-    tl: &Lang,
-    translator: &Translators,
-    value: HashMap<String, Value>,
-) {
-    // let file_name = digest(String::from(query) + &sl.to_string() + &tl.to_string() + &translator.to_string());
+fn save(query: &str, sl: &Lang, tl: &Lang, translator: &Translators, value: Value) {
     let file_name = file_name(query, sl, tl, translator);
     cache::set(&file_name, value);
 }
 
-fn load(
-    query: &str,
-    sl: &Lang,
-    tl: &Lang,
-    translator: &Translators,
-) -> Result<HashMap<String, Value>, Error> {
+fn load(query: &str, sl: &Lang, tl: &Lang, translator: &Translators) -> Result<Value, Error> {
     let file_name = file_name(query, sl, tl, translator);
-    cache::get::<HashMap<String, Value>>(file_name)
+    cache::get::<Value>(file_name)
 }
 
 fn file_name(query: &str, sl: &Lang, tl: &Lang, translator: &Translators) -> String {

@@ -1,28 +1,23 @@
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use log::{debug, trace};
-use reqwest::{Client, Error};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::utils::dyer::{Colors, Dye};
 use super::{Lang, Translator};
+use crate::{
+    errors::Error,
+    utils::dyer::{Colors, Dye},
+};
 
 const DICTAPI_URL: &str = "https://api.dictionaryapi.dev/api/v2/entries";
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DictionaryApi;
 
 #[async_trait]
 impl Translator for DictionaryApi {
-    async fn translate(
-        &self,
-        words: &str,
-        source: &Lang,
-        _target: &Lang,
-    ) -> Result<HashMap<String, Value>, Error> {
+    async fn translate(&self, words: &str, source: &Lang, _target: &Lang) -> Result<Value, Error> {
         trace!("DictionaryApi: Start to get request.");
 
         let lang = match_lang(source);
@@ -33,19 +28,13 @@ impl Translator for DictionaryApi {
         let client = Client::new();
         debug!("reqwest client: {:#?}", client);
 
-        let v = client.get(&url).send().await?.json::<Value>().await?;
-
-        // we return a map similar to other translators, key "entries"
-        let mut map = HashMap::new();
-        map.insert(String::from("entries"), v);
-
-        Ok(map)
+        Ok(client.get(&url).send().await?.json::<Value>().await?)
     }
 
-    fn show(&self, response: &HashMap<String, Value>, _more: bool) {
+    fn show(&self, response: &Value, _more: bool) {
         trace!("DictionaryApi: parsing response data.");
 
-        if let Some(Value::Array(entries)) = response.get("entries") {
+        if let Value::Array(entries) = response {
             for entry in entries {
                 if let Value::Object(obj) = entry {
                     // word
@@ -79,18 +68,37 @@ impl Translator for DictionaryApi {
                                 if let Some(Value::Array(defs)) = mobj.get("definitions") {
                                     for (i, def) in defs.iter().enumerate() {
                                         if let Value::Object(dobj) = def {
-                                            if let Some(Value::String(def_text)) = dobj.get("definition") {
-                                                println!("{}. {}", i + 1, def_text.dye(Colors::Cyan));
+                                            if let Some(Value::String(def_text)) =
+                                                dobj.get("definition")
+                                            {
+                                                println!(
+                                                    "{}. {}",
+                                                    i + 1,
+                                                    def_text.dye(Colors::Cyan)
+                                                );
                                             }
-                                            if let Some(Value::String(example)) = dobj.get("example") {
+                                            if let Some(Value::String(example)) =
+                                                dobj.get("example")
+                                            {
                                                 println!("   {}", example.dye(Colors::BrightBlack));
                                             }
                                             if let Some(Value::Array(syns)) = dobj.get("synonyms") {
-                                                let syn_vec: Vec<String> = syns.iter().filter_map(|s| {
-                                                    if let Value::String(sv) = s { Some(sv.clone()) } else { None }
-                                                }).collect();
+                                                let syn_vec: Vec<String> = syns
+                                                    .iter()
+                                                    .filter_map(|s| {
+                                                        if let Value::String(sv) = s {
+                                                            Some(sv.clone())
+                                                        } else {
+                                                            None
+                                                        }
+                                                    })
+                                                    .collect();
                                                 if !syn_vec.is_empty() {
-                                                    println!("   {}", format!("synonyms: {}", syn_vec.join(", ")).dye(Colors::Green));
+                                                    println!(
+                                                        "   {}",
+                                                        format!("synonyms: {}", syn_vec.join(", "))
+                                                            .dye(Colors::Green)
+                                                    );
                                                 }
                                             }
                                         }

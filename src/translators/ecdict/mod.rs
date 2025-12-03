@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-
-use reqwest::Error;
 use sea_orm::{ColumnTrait, Database, DatabaseConnection};
 use serde_json::Value;
 
 use crate::{
+    errors::Error,
     translators::{Lang, Translator},
     utils::dyer::{Colors, Dye},
 };
@@ -15,12 +13,7 @@ pub struct Ecdict;
 
 #[async_trait::async_trait]
 impl Translator for Ecdict {
-    async fn translate(
-        &self,
-        words: &str,
-        _source: &Lang,
-        _target: &Lang,
-    ) -> Result<HashMap<String, Value>, Error> {
+    async fn translate(&self, words: &str, _source: &Lang, _target: &Lang) -> Result<Value, Error> {
         use sea_orm::EntityTrait;
         use sea_orm::QueryFilter;
         let db = connect_db().await;
@@ -30,24 +23,26 @@ impl Translator for Ecdict {
             .one(&db)
             .await
             .unwrap();
-        let results: HashMap<String, Value> = match serde_json::to_value(result) {
-            Ok(Value::Object(map)) => map.into_iter().collect(),
-            _ => HashMap::new(),
-        };
-        Ok(results)
+        Ok(serde_json::to_value(result)?)
     }
-    fn show(&self, _response: &HashMap<String, Value>, _more: bool) {
-        if let Some(word) = _response.get("word") {
+    fn show(&self, _response: &Value, _more: bool) {
+        if let Some(Value::String(word)) = _response.get("word") {
             println!("{}", word);
         }
-        if let Some(phonetic) = _response.get("phonetic") {
-            println!("{}", phonetic.as_str().unwrap().dye(Colors::BrightYellow));
+        if let Some(Value::String(exchange)) = _response.get("exchange") {
+            println!("{}", exchange.replace("/", ", ").dye(Colors::BrightCyan));
         }
-        if let Some(definition) = _response.get("definition") {
-            println!("{}", definition.as_str().unwrap().dye(Colors::BrightGreen));
+        if let Some(Value::String(phonetic)) = _response.get("phonetic") {
+            println!("{}", phonetic.dye(Colors::BrightYellow));
         }
-        if let Some(translation) = _response.get("translation") {
-            println!("{}", translation.as_str().unwrap().dye(Colors::Blue));
+        if let Some(Value::String(definition)) = _response.get("definition") {
+            println!(
+                "{}",
+                definition.replace("\\n", "\n").dye(Colors::BrightGreen)
+            );
+        }
+        if let Some(Value::String(translation)) = _response.get("translation") {
+            println!("{}", translation.replace("\\n", "\n").dye(Colors::Blue));
         }
     }
 }

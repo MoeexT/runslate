@@ -5,33 +5,30 @@ use std::{
 
 use async_trait::async_trait;
 use log::{debug, trace};
-use reqwest::{header::HeaderMap, Client, Error};
+use reqwest::{header::HeaderMap, Client};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha256::digest;
 use uuid::Uuid;
 
-use crate::utils::{
-    dyer::{Colors, Dye},
-    env_loader,
+use crate::{
+    errors::Error,
+    utils::{
+        dyer::{Colors, Dye},
+        env_loader,
+    },
 };
 
 use super::{Lang, Translator};
 
 const YOUDAO_URL: &str = "https://openapi.youdao.com/api";
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Youdao;
 
 #[async_trait]
 impl Translator for Youdao {
-    async fn translate(
-        &self,
-        words: &str,
-        source: &Lang,
-        target: &Lang,
-    ) -> Result<HashMap<String, Value>, Error> {
+    async fn translate(&self, words: &str, source: &Lang, target: &Lang) -> Result<Value, Error> {
         trace!("Youdao: Start to post request.");
 
         let mut headers = HeaderMap::new();
@@ -80,11 +77,11 @@ impl Translator for Youdao {
             .query(&data)
             .send()
             .await?
-            .json::<HashMap<String, Value>>()
+            .json::<Value>()
             .await?)
     }
 
-    fn show(&self, response: &HashMap<String, Value>, more: bool) {
+    fn show(&self, response: &Value, more: bool) {
         trace!("Youdao: parsing response data.");
 
         // 【可选打印项】单词校验后的结果，主要校验字母大小写、单词前含符号、中文简繁体

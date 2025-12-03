@@ -39,31 +39,25 @@ pub fn load_or_default(key: &str, default: &str) -> String {
 }
 
 pub fn load_env_file(file_name: &str) -> Result<String, Error> {
-    // 1. current directory
-    let mut file_path = env::current_dir().unwrap().join(file_name);
-
-    // 2. ~/.config/runslate/
-    if !file_path.exists() {
-        file_path = home::home_dir()
+    let paths = vec![
+        env::current_dir().unwrap().join(file_name),
+        home::home_dir().unwrap().join(file_name),
+        home::home_dir()
             .unwrap()
             .join(".config/runslate")
-            .join(file_name);
-    }
-
-    // 3. current_exe's directory
-    if !file_path.exists() {
-        file_path = env::current_exe()
+            .join(file_name),
+        env::current_exe()
             .unwrap()
             .parent()
-            .expect("exe file must be in some directory")
-            .join(file_name);
-    }
+            .ok_or(Error::FileNotExist("current exe parent".to_string()))?
+            .join(file_name),
+    ];
+    let file_path = paths
+        .iter()
+        .find(|p| p.exists())
+        .ok_or(Error::EnvNotExist(".env".to_string()))?;
 
-    if !file_path.exists() {
-        return Err(Error::FileNotExist(String::from(".env file not found.")));
-    }
-
-    if let None = dotenv::from_path(&file_path).ok() {
+    if let None = dotenvy::from_path(&file_path).ok() {
         return Err(Error::OuterCrateInternalError(String::from(
             "[dotenv] Load .env file failed.",
         )));
@@ -76,7 +70,9 @@ pub fn clear_empty_env(envs: Vec<&str>) {
     for key in envs {
         if let Ok(value) = load(key) {
             if value.trim().len() == 0 {
-                env::remove_var(key);
+                unsafe {
+                    env::remove_var(key);
+                }
             }
         }
     }

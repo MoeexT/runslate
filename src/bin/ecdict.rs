@@ -1,10 +1,8 @@
 use dotenvy::dotenv;
 use migration::{Migrator, MigratorTrait};
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Database, DatabaseConnection, Statement, TransactionTrait
-};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, Database, DatabaseConnection, TransactionTrait};
 
-use runslate::db::ecdict::entities::words::ActiveModel as EcdictWord;
+use runslate::translators::ecdict::entities::words::ActiveModel as EcdictWord;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -80,5 +78,6 @@ async fn import_csv(db: &DatabaseConnection, csv_path: &str) -> anyhow::Result<(
         }
         txn.commit().await?;
     }
+    println!("Imported {} records into ecdict database.", count);
     Ok(())
 }

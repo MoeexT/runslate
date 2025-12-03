@@ -1,6 +1,9 @@
-use std::{time::{SystemTime, UNIX_EPOCH}, path::Path};
+use std::{
+    path::Path,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
-use log::{debug, error, info};
+use log::{debug, info};
 use serde::Serialize;
 
 use crate::{
@@ -15,26 +18,18 @@ pub fn pack<T>(value: T) -> Result<CacheRecord, Error>
 where
     T: Sized + Serialize,
 {
-    let Ok(value) = serde_json::to_string::<T>(&value) else {
-        error!("Serialize content failed.");
-        return Err(Error::SerializeFailed(String::from("")));
-    };
-
-    let cur_time = SystemTime::now()
+    let data = serde_json::to_string::<T>(&value)?;
+    let created_at = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
 
-    Ok(CacheRecord {
-        data: value,
-        created_at: cur_time,
-    })
+    Ok(CacheRecord { data, created_at })
 }
 
 /// Read file and deserialize file content to [CacheRecord].
 /// If cache expired, an [Error::CacheExpired] will be returned.
-pub fn unpack<P: AsRef<Path>>(f_name: P) -> Result<CacheRecord, Error>
-{
+pub fn unpack<P: AsRef<Path>>(f_name: P) -> Result<CacheRecord, Error> {
     match read_string(&f_name) {
         Ok(value) => match serde_json::from_str::<CacheRecord>(&value) {
             Ok(record) => {
@@ -51,7 +46,9 @@ pub fn unpack<P: AsRef<Path>>(f_name: P) -> Result<CacheRecord, Error>
                     return Ok(record);
                 }
 
-                Err(Error::CacheExpired(f_name.as_ref().to_string_lossy().to_string()))
+                Err(Error::CacheExpired(
+                    f_name.as_ref().to_string_lossy().to_string(),
+                ))
             }
             Err(e) => Err(Error::DeserializeFailed(e.to_string())),
         },

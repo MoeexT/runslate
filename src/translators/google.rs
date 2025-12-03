@@ -1,14 +1,15 @@
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use log::{debug, trace};
-use reqwest::{Client, Error};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::utils::{
-    dyer::{Colors, Dye},
-    env_loader,
+use crate::{
+    errors::Error,
+    utils::{
+        dyer::{Colors, Dye},
+        env_loader,
+    },
 };
 
 use super::{Lang, Translator};
@@ -20,12 +21,7 @@ pub struct Google;
 
 #[async_trait]
 impl Translator for Google {
-    async fn translate(
-        &self,
-        words: &str,
-        source: &Lang,
-        target: &Lang,
-    ) -> Result<HashMap<String, Value>, Error> {
+    async fn translate(&self, words: &str, source: &Lang, target: &Lang) -> Result<Value, Error> {
         trace!("Google: Start to post request.");
 
         let url = env_loader::load_or_default("RUNSLATE_GOOGLE_URL", GOOGLE_URL);
@@ -54,11 +50,11 @@ impl Translator for Google {
             .query(&query)
             .send()
             .await?
-            .json::<HashMap<String, Value>>()
+            .json::<Value>()
             .await?)
     }
 
-    fn show(&self, response: &HashMap<String, Value>, _more: bool) {
+    fn show(&self, response: &Value, _more: bool) {
         trace!("Google: parsing response data.");
 
         // 句子

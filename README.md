@@ -4,8 +4,10 @@ A shell dictionary created by Rust.
 
 ## :alien: API provider
 
-+ [youdao](https://ai.youdao.com/product-fanyi-text.s)
 + [google](https://translate.google.com/)
++ [ECDICT](https://github.com/skywind3000/ECDICT)
++ [dictionary-api](https://dictionaryapi.dev/)
++ [youdao](https://ai.youdao.com/product-fanyi-text.s)
 
 ## :construction: Installation
 
@@ -52,6 +54,8 @@ source .env
 ## :hammer: Crates used
 
 + [clap](https://docs.rs/clap/latest/clap/): parse arguments.
++ [tokio](https://github.com/tokio-rs/tokio): async runtime.
++ [sea-orm](https://www.sea-ql.org/SeaORM/): ORM.
 + [reqwest](https://docs.rs/reqwest/latest/reqwest/): http request.
 + [serde_json](https://docs.rs/serde_json/latest/serde_json/): json parse.
 + [env_logger](https://docs.rs/env_logger/latest/env_logger/): logging.
@@ -59,6 +63,7 @@ source .env
 
 ## :page_facing_up: Update log
 
++ **2025-12-03 v0.5.0** Add localized datasource, supplied by ECDICT, driven by sqlite.
 + **2024-03-17 v0.4.4** It won't panic if .env file doesn't exist.
 + **2023-08-15 v0.3.0** Load `.env` file from current dir, app-dir(~/.config/runslate/), exe-file dir one by one.
 + **2023-08-15 v0.2.0** Save & load cache.
